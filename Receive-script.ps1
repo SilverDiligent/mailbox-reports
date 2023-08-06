@@ -28,6 +28,8 @@ $firstDayOfCurrentMonth = Get-Date -Year $currentDateUTC.Year -Month $currentDat
 # Calculate the first and last day of the previous month
 $firstDayOfLastMonth = $firstDayOfCurrentMonth.AddMonths(-1).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
 $lastDayOfLastMonth = $firstDayOfCurrentMonth.AddSeconds(-1).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
+$previousMonthFirstDay = (Get-Date).AddMonths(-1).AddDays(-((Get-Date).Day - 1))
+$previousMonthName = $previousMonthFirstDay.ToString("MMMM")
 
 
 foreach ($report in $mailboxReports) {
@@ -68,10 +70,10 @@ foreach ($report in $mailboxReports) {
 
     $emailJsonPayload = @{
         'message'         = @{
-            'subject'      = "Mailbox Data"
+            'subject'      = "Received Mailbox report data for $mailboxId - $previousMonthName"
             'body'         = @{
                 'contentType' = "Text"
-                'content'     = "Attached is your mailbox data for last month."
+                'content'     = "Attached are all the emails received for the mailbox $mailboxId for $previousMonthName ."
             }
             'from'         = @{
                 'emailAddress' = @{
@@ -88,7 +90,7 @@ foreach ($report in $mailboxReports) {
             'attachments'  = @(
                 @{
                     '@odata.type'  = "#microsoft.graph.fileAttachment"
-                    'name'         = "MailboxData_$mailboxId.csv"
+                    'name'         = "Received_MailboxData_$mailboxId.csv"
                     'contentType'  = "text/csv"
                     'contentBytes' = $csvBase64
                 }
