@@ -1,6 +1,18 @@
 # Load the config.json data file
 $configData = Get-Content -Path '.\config.json' | ConvertFrom-Json
-$mailboxData = Get-Content -Path '.\mailboxIds.json' | ConvertFrom-Json
+$mailboxData = Get-Content -Path '.\mailboxMap.json' | ConvertFrom-Json
+
+# Import hash table from the external JSON file$mailboxMap = Get-Content -Path '.\mailboxMap.json' | ConvertFrom-Json
+
+
+# Convert the imported JSON to a hash table
+$mailboxMap = @{}
+$mailboxData.PSObject.Properties | ForEach-Object { $mailboxMap[$_.Name] = $_.Value }
+
+# Debugging: Verify the type and content of $mailboxMap
+Write-Host "Type of mailboxMap: $($mailboxMap.GetType().FullName)"
+Write-Host "Debug: Content of mailboxMap"
+Write-Host ($mailboxMap | Out-String)
 
 # Set the configuration parameters
 $tenantId = $configData.tenantId
@@ -23,11 +35,11 @@ $mailApiHeaders = @{
 # Current date in UTC
 $currentDateUTC = [System.DateTime]::UtcNow
 
-# Start date is 9 days before the current date
-$startDate = $currentDateUTC.AddDays(-8).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
+# Start date is (n) days before the current date
+$startDate = $currentDateUTC.AddDays(-3).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
 
 # End date is the 2 days before the current date
-$endDate = $currentDateUTC.AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
+$endDate = $currentDateUTC.AddDays(-2).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
 
 # Define CSV file name based on the current month
 $csvFileName = $currentDateUTC.ToString("MMMM") + "_Report.csv"
@@ -38,17 +50,17 @@ if ((Get-Date).Day -eq 1 -and !(Test-Path $csvFileName)) {
     @("Received", "Subject", "RecipientAddress", "SenderAddress", "Status") | Out-File -Path $csvFileName
 }
 
-
-# Iterate through the mailbox reports
-foreach ($report in $mailboxData.mailboxReports) {
-    $senderEmail = $report.mailboxId
-    $recipientEmail = $report.recipient
+# Loop through each email address in the hash table
+foreach ($key in $mailboxMap.Keys) {
+    write-host "Debug: Current key is $key"
+    $mailbox = $key
+    $recipientEmail = $mailboxMap[$key]
 
     # Fields you want to select
     $selectFields = "Received,Subject,RecipientAddress,SenderAddress,Status"
 
     # Define the URL for the message trace endpoint
-    $messageTraceUrl = "https://reports.office365.com/ecp/reportingwebservice/reporting.svc/MessageTrace/?`$select=$selectFields&`$filter=StartDate eq datetime'$startDate' and EndDate eq datetime'$endDate' and RecipientAddress eq 'alexisc@alexislab.com'"
+    $messageTraceUrl = "https://reports.office365.com/ecp/reportingwebservice/reporting.svc/MessageTrace/?`$select=$selectFields&`$filter=StartDate eq datetime'$startDate' and EndDate eq datetime'$endDate' and RecipientAddress eq '$mailbox'"
 
     # Invoke the REST API
     $response = Invoke-RestMethod -Uri $messageTraceUrl -Method Get -Headers $mailApiHeaders
