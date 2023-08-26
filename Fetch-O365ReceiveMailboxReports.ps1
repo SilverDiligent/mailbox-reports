@@ -2,9 +2,6 @@
 $configData = Get-Content -Path '.\config.json' | ConvertFrom-Json
 $mailboxData = Get-Content -Path '.\mailboxMap.json' | ConvertFrom-Json
 
-# Import hash table from the external JSON file$mailboxMap = Get-Content -Path '.\mailboxMap.json' | ConvertFrom-Json
-
-
 # Convert the imported JSON to a hash table
 $mailboxMap = @{}
 $mailboxData.PSObject.Properties | ForEach-Object { $mailboxMap[$_.Name] = $_.Value }
@@ -69,25 +66,15 @@ foreach ($key in $mailboxMap.Keys) {
 $reportData = $response.value | Select-Object -Property Received, Subject, RecipientAddress, SenderAddress, Status
 
 # Export to a CSV file
-$reportData | Export-Csv -Path 'report.csv' -NoTypeInformation -Append
+$individualCsvFileName = "${key}_${currentDateUTC.ToString("MMMM")}_Report.csv"
+$reportData | Export-Csv -Path $individualCsvFileName -NoTypeInformation -Append
 
-    # Loop through each message
-    $reportContent = "Report for $senderEmail`n`n"
-    foreach ($message in $response) {
-        $reportContent += "Sender: $($message.SenderAddress)`nRecipient: $($message.RecipientAddress)`nSubject: $($message.Subject)`nReceived: $($message.Received)`nStatus: $($message.Status)`n`n"
+# Check if it's the end of the month
+if ((Get-Date).Day -eq [DateTime]::DaysInMonth((Get-Date).Year, (Get-Date).Month)) {
+        foreach ($key in $mailboxMap.Keys) {
+            $individualCsvFileName = "${key}_${currentDateUTC.ToString("MMMM")}_Report.csv"
+            $recipientEmail = $mailboxMap[$key]
+            Send-GraphEmail -recipientEmail $recipientEmail -subject "Monthly Report" -body "Here is your monthly report." -attachmentPath $individualCsvFileName -accessToken $token.AccessToken
+    }
 }
-
-    # Send the report to the recipient (e.g., via email)
-    Send-Report -Recipient $recipientEmail -Content $reportContent
 }
-
-# Function to send the report (you can implement this based on your specific requirements)
-function Send-Report {
-    param (
-        [string]$Recipient,
-        [string]$Content
-    )
-
-    # Logic to send the report (e.g., via email) to the recipient
-    # ...
-} Process the response as needed
