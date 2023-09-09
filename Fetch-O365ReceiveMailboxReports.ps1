@@ -1,5 +1,8 @@
 # Import the sendinfo.ps1 file
-.\sendinfo.ps1
+Write-Host "Debug: About to source sendinfo.ps1"
+. .\sendinfo.ps1
+Write-Host "Debug: Finished sourcing sendinfo.ps1"
+
 
 # Load the config.json data file
 $configData = Get-Content -Path '.\config.json' | ConvertFrom-Json
@@ -22,21 +25,35 @@ $tenantId = $configData.tenantId
 $appId = $configData.appId
 $appSecret = $configData.clientSecretString
 $mailboxReports = $mailboxData.mailboxReports
-$scope = $configData.scope
+$scope1 = $configData.scope1
+$scope2 = $configData.scope2
 $clientSecret = ConvertTo-SecureString -String $appSecret -AsPlainText -Force
 
+Write-Host "Scope1: $scope1"
 # Acquire the access token
-$token = Get-MsalToken -ClientId $appId -TenantId $tenantId -ClientSecret $clientSecret -Scopes $scope
+$token_1 = Get-MsalToken -ClientId $appId -TenantId $tenantId -ClientSecret $clientSecret -Scopes $scope1
+
+# Acquire token for second service (Mail.Send)
+$token_2 = Get-MsalToken -ClientId $appId -TenantId $tenantId -ClientSecret $clientSecret -Scopes $scope2
 
 # Include the access token in the headers
 $mailApiHeaders = @{
-    'Authorization' = "Bearer $($token.AccessToken)"
+    'Authorization' = "Bearer $($token_1.AccessToken)"
+    'Accept'        = 'application/json'
+    'Content-Type'  = 'application/json'
+}
+
+# New code for setting headers for the Mail.Send service
+$mailSendHeaders = @{
+    'Authorization' = "Bearer $($token_2.AccessToken)"
     'Accept'        = 'application/json'
     'Content-Type'  = 'application/json'
 }
 
 # Current date in UTC
 $currentDateUTC = [System.DateTime]::UtcNow
+# $currentDateUTC = Get-Date "2023-10-02 00:00:00Z" # Uncomment this for dry-run
+$currentDateUTC = [DateTime]::SpecifyKind($currentDateUTC, [System.DateTimeKind]::Utc)  # # Set DateTimeKind to Utc
 
 # Convert to Eastern Time (Miami
 $easternZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Eastern Standard Time")
@@ -44,7 +61,7 @@ $currentDateEastern = [System.TimeZoneInfo]::ConvertTimeFromUtc($currentDateUTC,
 $csvFileName = "$($currentDateEastern.ToString('MMMM'))_Report.csv"
 
 # Start date is (n) days before the current date
-$startDate = $currentDateUTC.AddDays(-3).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
+$startDate = $currentDateUTC.AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
 # End date is the 2 days before the current date
 $endDate = $currentDateUTC.AddDays(-2).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
 # $csvFileName = $currentDateEastern.ToString("MMMM") + "_Report.csv"
@@ -67,9 +84,11 @@ foreach ($key in $mailboxMap.Keys) {
     Write-Host "Debug: Month= $monthString"
     $mailbox = $key
     $recipientEmail = $mailboxMap[$key]
+    Write-Host "Debug: About to set individualCsvFileName"
     $individualCsvFileName = "${key}_${monthString}_Report.csv"
+    
 
-    Write-Host "Debug: Full Filename=$individualCsvFileName"
+    Write-Host "Debug: individualCsvFileName is $individualCsvFileName"
 
     # Fields you want to select
     $selectFields = "Received,Subject,RecipientAddress,SenderAddress,Status"
@@ -77,9 +96,14 @@ foreach ($key in $mailboxMap.Keys) {
     # Define the URL for the message trace endpoint
     $messageTraceUrl = "https://reports.office365.com/ecp/reportingwebservice/reporting.svc/MessageTrace/?`$select=$selectFields&`$filter=StartDate eq datetime'$startDate' and EndDate eq datetime'$endDate' and RecipientAddress eq '$mailbox'"
 
-    # Invoke the REST API
-    $response = Invoke-RestMethod -Uri $messageTraceUrl -Method Get -Headers $mailApiHeaders
+    try {
 
+        # Invoke the REST API
+        $response = Invoke-RestMethod -Uri $messageTraceUrl -Method Get -Headers $mailApiHeaders
+    }
+    catch {
+        write-host "Error: $($_.Exception.message)"
+    }
     # Select only the required properties
     $reportData = $response.value | Select-Object -Property Received, Subject, RecipientAddress, SenderAddress, Status
 
@@ -91,17 +115,19 @@ foreach ($key in $mailboxMap.Keys) {
     else {
         Write-Host "Debug: No data to write for $key"
     }
-
+    
     # Check if the file exists before attempting to send the email
-    if (Test-Path -Path $individualCsvFileName) {
-        Write-Host "Debug: File exists. Attempting to send email."
-        Send-Email -recipientEmail $recipientEmail -accessToken $token.AccessToken -csvFilePath $csvFilePath -fromEmail $emailConfigData.fromEmail
+    $fileExists = Test-Path -Path $individualCsvFileName  # Assign the result to $fileExists
+    if ($fileExists) {
+        Write-Host "Debug: File exists. About to send email."
+        Write-Host "Debug: Inside Send-Email, csvFilePath is $individualcsvFileName"
+        Send-Email -recipientEmail $recipientEmail -accessToken $token.AccessToken -individualCsvFileName $individualCsvFileName -fromEmail $emailConfigData.fromEmail
     }
     else {
-        Write-Host "Debug: File does not exist. Getting child items."
+        Write-Host "Debug: File does not exist. Skipping email send."
         Get-ChildItem -Path . -Filter "*.csv"
-    
     }
+
 }
 Write-host "Debug: Exiting loop"
 
@@ -113,19 +139,42 @@ if ($currentDateEastern.Day -eq [DateTime]::DaysInMonth($currentDateEastern.Year
         
         $recipientEmail = $mailboxMap[$key]
         Write-Host "Debug: Recipient email is $recipientEmail"
-
         
     }
+}
+
+Function Get-LastMonthString {
+    param (
+        [dateTime]$date
+    )
+    $previousMonthDate = $date.AddMonths(-1)
+    return $previousMonthDate.ToString("MMMM")
 }
 
 # Check if the file exists before attempting to send the email
 Write-Host "Debug: Checking for file $individualCsvFileName"  # Debugging line added here
     
 
-# Check if it's a new month and if the CSV file doesn't exist
-if ($currentDateEastern.Day -eq 1 -and !(Test-Path $csvFileName)) {
-    # Create a new CSV file with the header, you can adjust the header based on your data
-    @("Received", "Subject", "RecipientAddress", "SenderAddress", "Status") | Out-File -Path $csvFileName
+# Check if it's the first day of the new month
+if ($currentDateEastern.Day -eq 9) {
+    Write-Host "Debug: It's the SECOND! day of the month, preparing to send last month's reports."
+
+    # Get last month's string
+    $previousMonth = Get-LastMonthString -date $currentDateEastern
+        
+
+    # Loop through each mail ID to check if the report exists and send the email
+    foreach ($key in $mailboxMap.Keys) {
+        $recipientEmail = $mailboxMap[$key]
+
+        # Check if the file exists before attempting to send emails.
+        if (Test-Path -Path $individualCsvFileName) {
+            Write-host "Debug: Last month's report for $recipientEmail exists. Preparing to send emails."
+            write-Host "Debug: About to call Send-Email with CSV: $lastMonthCsvFileName"
+            Send-Email -recipientEmail $recipientEmail -accessToken $token.AccessToken -individualCsvFileName $individualCsvFileName -fromEmail $emailConfigData.fromEmail
+        }
+        else {
+            Write-Host "Debug: Last month's report for $recipientEmail does not exist. Skipping email send."
+        }
+    }
 }
-
-
