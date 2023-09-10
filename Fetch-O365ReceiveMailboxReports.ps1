@@ -165,13 +165,16 @@ if ($currentDateEastern.Day -eq 9) {
 
     # Loop through each mail ID to check if the report exists and send the email
     foreach ($key in $mailboxMap.Keys) {
+        $fromEmail = $key
         $recipientEmail = $mailboxMap[$key]
+
+        Write-Host "About to send email to $recipientEmail from $fromEmail."
 
         # Check if the file exists before attempting to send emails.
         if (Test-Path -Path $individualCsvFileName) {
             Write-host "Debug: Last month's report for $recipientEmail exists. Preparing to send emails."
             write-Host "Debug: About to call Send-Email with CSV: $lastMonthCsvFileName"
-            Send-Email -recipientEmail $recipientEmail -accessToken $token.AccessToken -individualCsvFileName $individualCsvFileName -fromEmail $emailConfigData.fromEmail
+            Send-Email -recipientEmail $recipientEmail -accessToken $token_2.AccessToken -individualCsvFileName $individualCsvFileName -fromEmail $emailConfigData.fromEmail
         }
         else {
             Write-Host "Debug: Last month's report for $recipientEmail does not exist. Skipping email send."
