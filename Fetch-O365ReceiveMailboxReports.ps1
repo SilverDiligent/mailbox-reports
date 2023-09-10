@@ -3,6 +3,21 @@ Write-Host "Debug: About to source sendinfo.ps1"
 . .\sendinfo.ps1
 Write-Host "Debug: Finished sourcing sendinfo.ps1"
 
+# Import the sendinfo.ps1 file
+Write-Host "Debug: About to source sendinfo.ps1"
+. .\sendinfo.ps1
+Write-Host "Debug: Finished sourcing sendinfo.ps1"
+
+# Function definitions
+Function Get-LastMonthString {
+    param (
+        [dateTime]$date
+    )
+    $previousMonthDate = $date.AddMonths(-1)
+    return $previousMonthDate.ToString("MMMM")
+}
+
+
 
 # Load the config.json data file
 $configData = Get-Content -Path '.\config.json' | ConvertFrom-Json
@@ -60,19 +75,20 @@ $easternZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Eastern Standard T
 $currentDateEastern = [System.TimeZoneInfo]::ConvertTimeFromUtc($currentDateUTC, $easternZone)
 # Check if today is the first day of the month
 $today = $currentDateEastern
-if ($today.Day -eq 9) {
-    # Construct the CSV file name based on the current month and year
-    $csvFileName = "MonthlyReport_$(Get-Date -Format "yyyy_MMMM").csv"
+# if ($today.Day -eq 10) {
+#     # Construct the CSV file name based on the current month and year
+#     $csvFileName = "MonthlyReport_$(Get-Date -Format "yyyy_MMMM").csv"
+#     #  $individualCsvFileName = "${key}_${monthString}_Received_Report.csv"
 
-    # Create the new CSV with headers (overwrite if exists)
-    $header = "Received,Subject,RecipientAddress,SenderAddress,Status"
-    $header | Out-File -FilePath $csvFileName
+#     # Create the new CSV with headers (overwrite if exists)
+#     $header = "Received,Subject,RecipientAddress,SenderAddress,Status"
+#     $header | Out-File -FilePath $csvFileName
 
-    Write-Host "Created new CSV file for the month: $csvFileName"
-}
-else {
+#     Write-Host "Created new CSV file for the month: $csvFileName"
+# }
+{
     # Use the CSV file corresponding to the current month
-    $csvFileName = "MonthlyReport_$(Get-Date -Format "yyyy_MM").csv"
+    $csvFileName = "MonthlyReport_$(Get-Date -Format "yyyy_MMMM").csv"
 
     # Check if the file exists, if not create it with headers
     if (-Not (Test-Path $csvFileName)) {
@@ -167,20 +183,12 @@ if ($currentDateEastern.Day -eq [DateTime]::DaysInMonth($currentDateEastern.Year
     }
 }
 
-Function Get-LastMonthString {
-    param (
-        [dateTime]$date
-    )
-    $previousMonthDate = $date.AddMonths(-1)
-    return $previousMonthDate.ToString("MMMM")
-}
-
 # Check if the file exists before attempting to send the email
 Write-Host "Debug: Checking for file $individualCsvFileName"  # Debugging line added here
     
 
 # Check if it's the first day of the new month
-if ($currentDateEastern.Day -eq 9) {
+if ($currentDateEastern.Day -eq 10) {
     Write-Host "Debug: It's the SECOND! day of the month, preparing to send last month's reports."
 
     # Get last month's string
@@ -189,19 +197,42 @@ if ($currentDateEastern.Day -eq 9) {
 
     # Loop through each mail ID to check if the report exists and send the email
     foreach ($key in $mailboxMap.Keys) {
-        $fromEmail = $key
+        # Create last month's CSV file name
+        $lastMonthCsvFileName = "${key}_${previousMonth}_Report.csv"
+
+        # Create this month's CSV file name
+        $individualCsvFileName = "${key}_${monthString}_Report.csv"
+
+        # Create a new CSV for this month
+        $header = "Received,Subject,RecipientAddress,SenderAddress,Status"
+        $header | Out-File -FilePath $individualCsvFileName -Force
+        Write-Host "Created new CSV file for the month and mailbox: $individualCsvFileName"
+
+        # Send last month's report
         $recipientEmail = $mailboxMap[$key]
-
-        Write-Host "About to send email to $recipientEmail from $fromEmail."
-
-        # Check if the file exists before attempting to send emails.
-        if (Test-Path -Path $individualCsvFileName) {
-            Write-host "Debug: Last month's report for $recipientEmail exists. Preparing to send emails."
-            write-Host "Debug: About to call Send-Email with CSV: $lastMonthCsvFileName"
-            Send-Email -recipientEmail $recipientEmail -accessToken $token_2.AccessToken -individualCsvFileName $individualCsvFileName -fromEmail $emailConfigData.fromEmail
+        if (Test-Path -Path $lastMonthCsvFileName) {
+            Write-host "Last month's report for $recipientEmail exists. Preparing to send email."
+            Send-Email -recipientEmail $recipientEmail -accessToken $token_2.AccessToken -individualCsvFileName $lastMonthCsvFileName -fromEmail $emailConfigData.fromEmail
         }
         else {
-            Write-Host "Debug: Last month's report for $recipientEmail does not exist. Skipping email send."
+            Write-Host "Last month's report for $recipientEmail does not exist. Skipping email send."
         }
+    }
+}
+else {
+    Write-Host "It's not the first of the month. Continuing with usual processing."
+    $fromEmail = $key
+    $recipientEmail = $mailboxMap[$key]
+
+    Write-Host "About to send email to $recipientEmail from $fromEmail."
+
+    # Check if the file exists before attempting to send emails.
+    if (Test-Path -Path $individualCsvFileName) {
+        Write-host "Debug: Last month's report for $recipientEmail exists. Preparing to send emails."
+        write-Host "Debug: About to call Send-Email with CSV: $lastMonthCsvFileName"
+        Send-Email -recipientEmail $recipientEmail -accessToken $token_2.AccessToken -individualCsvFileName $individualCsvFileName -fromEmail $emailConfigData.fromEmail
+    }
+    else {
+        Write-Host "Debug: Last month's report for $recipientEmail does not exist. Skipping email send."
     }
 }
