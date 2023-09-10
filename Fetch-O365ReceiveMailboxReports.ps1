@@ -58,6 +58,30 @@ $currentDateUTC = [DateTime]::SpecifyKind($currentDateUTC, [System.DateTimeKind]
 # Convert to Eastern Time (Miami
 $easternZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Eastern Standard Time")
 $currentDateEastern = [System.TimeZoneInfo]::ConvertTimeFromUtc($currentDateUTC, $easternZone)
+# Check if today is the first day of the month
+$today = $currentDateEastern
+if ($today.Day -eq 9) {
+    # Construct the CSV file name based on the current month and year
+    $csvFileName = "MonthlyReport_$(Get-Date -Format "yyyy_MMMM").csv"
+
+    # Create the new CSV with headers (overwrite if exists)
+    $header = "Received,Subject,RecipientAddress,SenderAddress,Status"
+    $header | Out-File -FilePath $csvFileName
+
+    Write-Host "Created new CSV file for the month: $csvFileName"
+}
+else {
+    # Use the CSV file corresponding to the current month
+    $csvFileName = "MonthlyReport_$(Get-Date -Format "yyyy_MM").csv"
+
+    # Check if the file exists, if not create it with headers
+    if (-Not (Test-Path $csvFileName)) {
+        $header = "Received,Subject,RecipientAddress,SenderAddress,Status"
+        $header | Out-File -FilePath $csvFileName
+    }
+
+    Write-Host "Appending data to existing CSV file for the month: $csvFileName"
+}
 $csvFileName = "$($currentDateEastern.ToString('MMMM'))_Report.csv"
 
 # Start date is (n) days before the current date
