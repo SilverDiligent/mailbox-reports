@@ -3,11 +3,6 @@ Write-Host "Debug: About to source sendinfo.ps1"
 . .\sendinfo.ps1
 Write-Host "Debug: Finished sourcing sendinfo.ps1"
 
-# Import the sendinfo.ps1 file
-Write-Host "Debug: About to source sendinfo.ps1"
-. .\sendinfo.ps1
-Write-Host "Debug: Finished sourcing sendinfo.ps1"
-
 # Function definitions
 Function Get-LastMonthString {
     param (
@@ -66,8 +61,11 @@ $mailSendHeaders = @{
 }
 
 # Current date in UTC
-$currentDateUTC = [System.DateTime]::UtcNow
-# $currentDateUTC = Get-Date "2023-10-02 00:00:00Z" # Uncomment this for dry-run
+# $currentDateUTC = [System.DateTime]::UtcNow
+# $currentDateUTC = [DateTime]::SpecifyKind([System.DateTime]::UtcNow, [System.DateTimeKind]::Utc)
+Write-Host "Debug: Current Date UTC: $currentDateUTC"
+$currentDateUTC = [DateTime]::SpecifyKind((Get-Date "2023-10-01 04:00:00"), [System.DateTimeKind]::Utc)
+# Un-comment this for a dry run
 $currentDateUTC = [DateTime]::SpecifyKind($currentDateUTC, [System.DateTimeKind]::Utc)  # # Set DateTimeKind to Utc
 
 # Convert to Eastern Time (Miami
@@ -105,7 +103,7 @@ $startDate = $currentDateUTC.AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
 # End date is the 2 days before the current date
 $endDate = $currentDateUTC.AddDays(-2).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
 # $csvFileName = $currentDateEastern.ToString("MMMM") + "_Report.csv"
-$currentDateEastern = [System.TimeZoneInfo]::ConvertTimeFromUtc($currentDateEastern, $easternZone)
+# $currentDateEastern = [System.TimeZoneInfo]::ConvertTimeFromUtc($currentDateEastern, $easternZone)
 
 
 Write-host "Debug: Entering loop"
@@ -118,6 +116,8 @@ foreach ($key in $mailboxMap.Keys) {
     Write-Host "Debug: Current currentDateUTC=$currentDateUTC"
 
     $convertedTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($currentDateUTC, $easternZone)
+    Write-Host "Debug: convertedTime is $convertedTime"
+
     $monthString = $convertedTime.ToString('MMMM')
 
     # Debug line for month part
@@ -188,7 +188,7 @@ Write-Host "Debug: Checking for file $individualCsvFileName"  # Debugging line a
     
 
 # Check if it's the first day of the new month
-if ($currentDateEastern.Day -eq 10) {
+if ($currentDateEastern.Day -eq 1) {
     Write-Host "Debug: It's the SECOND! day of the month, preparing to send last month's reports."
 
     # Get last month's string
