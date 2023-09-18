@@ -161,7 +161,7 @@ foreach ($key in $mailboxMap.Keys) {
     if ($fileExists) {
         Write-Host "Debug: File exists. About to send email."
         Write-Host "Debug: Inside Send-Email, csvFilePath is $individualcsvFileName"
-        Send-Email -recipientEmail $recipientEmail -accessToken $token.AccessToken -individualCsvFileName $individualCsvFileName -fromEmail $emailConfigData.fromEmail
+        Send-Email -recipientEmail $recipientEmail -accessToken $token_2.AccessToken -individualCsvFileName $individualCsvFileName -fromEmail $emailConfigData.fromEmail
     }
     else {
         Write-Host "Debug: File does not exist. Skipping email send."
