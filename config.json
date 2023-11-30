@@ -1,0 +1,7 @@
+{
+  "tenantId": "d3065d80-2d77-4b5c-b113-1ac3ca4698ce",
+  "appId": "198a8742-035b-4680-8d45-8912107c8721",
+  "clientSecretString": "_~W8Q~fl13swZhnMJPMvwjyW~fPyY2rn5KJETax-",
+  "scope1": "https://outlook.office365.com/.default",
+  "scope2": "https://graph.microsoft.com/.default"
+}

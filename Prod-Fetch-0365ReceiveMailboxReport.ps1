@@ -47,7 +47,8 @@ $clientSecret = ConvertTo-SecureString -String $appSecret -AsPlainText -Force
 
 Write-Host "Scope1: $scope1"
 # Acquire the access token
-$token_1 = Get-MsalToken -ClientId $appId -TenantId $tenantId -ClientSecret $clientSecret -Scopes $scope1
+
+
 
 # Acquire token for second service (Mail.Send)
 $token_2 = Get-MsalToken -ClientId $appId -TenantId $tenantId -ClientSecret $clientSecret -Scopes $scope2
@@ -82,6 +83,10 @@ if ($currentDateArizona.Day -eq 3) {
   # Get last month's string
   $previousMonth = Get-LastMonthString -date $currentDateArizona
 
+  # Define the date range for the entire previous month in Arizona time
+  $startDate = $currentDateArizona.AddMonths(-1).Date.AddDays(1)   # Start from the 1st day of the previous month
+  $endDate = $currentDateArizona.Date.AddDays(-1)                # End on the last day of the previous month
+
   # Loop through each mailbox to check if the report exists and send the email
   foreach ($key in $mailboxMap.Keys) {
     # Create last month's CSV file name
@@ -115,7 +120,7 @@ $endDate = $currentDateUTC.AddDays(-2).ToString("yyyy-MM-ddTHH:mm:ss") + "Z"
 Write-host "Debug: Entering loop"
 # Loop through each email address in the hash table
 foreach ($key in $mailboxMap.Keys) {
-    
+   
   # Debug lines for key and current date
   Write-Host "Debug: About to process mailbox: $key"
   Write-Host "Debug: Current key=$key"
@@ -132,7 +137,7 @@ foreach ($key in $mailboxMap.Keys) {
   $recipientEmail = $mailboxMap[$key]
   Write-Host "Debug: About to set individualCsvFileName"
   $individualCsvFileName = "${key}_${monthString}_Report.csv"
-    
+   
 
   Write-Host "Debug: individualCsvFileName is $individualCsvFileName"
 
@@ -149,6 +154,7 @@ foreach ($key in $mailboxMap.Keys) {
   }
   catch {
     write-host "Error: $($_.Exception.message)"
+    write-host "Error Details: $($_.Exception.Response.Content.ReadAsStringAsync().Result)"
   }
   # Select only the required properties
   $reportData = $response.value | Select-Object -Property Received, Subject, RecipientAddress, SenderAddress, Status
@@ -161,7 +167,7 @@ foreach ($key in $mailboxMap.Keys) {
   else {
     Write-Host "Debug: No data to write for $key"
   }
-    
+   
   # Check if the file exists before attempting to send the email
   $fileExists = Test-Path -Path $individualCsvFileName  # Assign the result to $fileExists
   if ($fileExists -and $currentDateArizona.Day -eq 3) {
@@ -183,7 +189,7 @@ if ($currentDateArizona.Day -eq 3) {
 
   # Get last month's string
   $previousMonth = Get-LastMonthString -date $currentDateArizona
-      
+     
 
   # Loop through each mail ID to check if the report exists and send the email
   foreach ($key in $mailboxMap.Keys) {
@@ -214,4 +220,3 @@ $currentDateUTC.ToString("yyyy-MM-ddTHH:mm:ss") | Out-File -FilePath ".\lastRunD
 
 # Set the last run date
 Set-LastRunDate
-
